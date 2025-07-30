@@ -1,788 +1,999 @@
-// Core Game Engine
-const Game = {
-    // Game state
-    state: {
-        currentScreen: 'menu',
-        isPlaying: false,
-        isPaused: false,
-        battleTime: 180, // 3 minutes in seconds
-        battleTimeLeft: 180,
-        momentum: 3,
-        maxMomentum: 12,
-        lastMomentumUpdate: 0,
-        momentumRegenRate: 1500, // milliseconds
+// Cosmic Defender - Core Game Engine
+class CosmicDefender {
+    constructor() {
+        this.canvas = null;
+        this.ctx = null;
+        this.gameState = 'loading'; // loading, menu, playing, paused, gameOver
         
-        // Player data
-        honorPoints: 0,
-        unlockedCards: [],
-        currentDeck: [],
-        currentArena: null,
+        // Game settings
+        this.canvasWidth = 800;
+        this.canvasHeight = 600;
+        this.fps = 60;
+        this.frameInterval = 1000 / this.fps;
         
-        // Battle state
-        playerTotems: {
-            left: { hp: 1000, maxHp: 1000 },
-            main: { hp: 2000, maxHp: 2000 },
-            right: { hp: 1000, maxHp: 1000 }
-        },
-        enemyTotems: {
-            left: { hp: 1000, maxHp: 1000 },
-            main: { hp: 2000, maxHp: 2000 },
-            right: { hp: 1000, maxHp: 1000 }
-        },
+        // Game state
+        this.score = 0;
+        this.wave = 1;
+        this.lives = 3;
+        this.health = 100;
+        this.maxHealth = 100;
+        this.gameTime = 0;
+        this.waveStartTime = 0;
+        this.enemiesDefeated = 0;
+        this.shotsFired = 0;
+        this.shotsHit = 0;
         
-        // Units on battlefield
-        playerUnits: [],
-        enemyUnits: [],
+        // Game objects
+        this.player = null;
+        this.bullets = [];
+        this.enemies = [];
+        this.powerUps = [];
+        this.particles = [];
+        this.stars = [];
         
-        // Hand and deck
-        hand: [],
-        deckCards: [],
+        // Input handling
+        this.keys = {};
+        this.mouse = { x: 0, y: 0, pressed: false };
         
-        // Canvas and rendering
-        canvas: null,
-        ctx: null,
+        // Wave management
+        this.enemiesPerWave = 5;
+        this.enemySpawnRate = 2000; // milliseconds
+        this.lastEnemySpawn = 0;
+        this.enemiesSpawned = 0;
+        this.waveComplete = false;
         
-        // Game loop
-        lastFrameTime: 0,
-        animationId: null
-    },
-
-    // Initialize game
+        // Power-up system
+        this.activePowerUps = new Map();
+        this.powerUpSpawnChance = 0.3;
+        
+        // Animation frame
+        this.animationId = null;
+        this.lastFrameTime = 0;
+        
+        // Mobile controls
+        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        this.joystick = { active: false, x: 0, y: 0, centerX: 0, centerY: 0 };
+        
+        this.init();
+    }
+    
     init() {
-        this.loadPlayerData();
-        this.setupCanvas();
-        this.initializeUI();
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
         
-        // Start momentum regeneration
-        this.startMomentumRegen();
-        
-        console.log('Game initialized');
-    },
-
-    // Load player data from localStorage
-    loadPlayerData() {
-        const savedData = localStorage.getItem('enchantedRealmsData');
-        if (savedData) {
-            const data = JSON.parse(savedData);
-            this.state.honorPoints = data.honorPoints || 0;
-            this.state.unlockedCards = data.unlockedCards || Cards.getUnlockedCards(0);
-            this.state.currentDeck = data.currentDeck || Cards.getStartingDeck();
-        } else {
-            // First time player
-            this.state.honorPoints = 0;
-            this.state.unlockedCards = Cards.getUnlockedCards(0);
-            this.state.currentDeck = Cards.getStartingDeck();
-        }
-        
-        this.state.currentArena = Cards.getCurrentArena(this.state.honorPoints);
-        this.savePlayerData();
-    },
-
-    // Save player data to localStorage
-    savePlayerData() {
-        const data = {
-            honorPoints: this.state.honorPoints,
-            unlockedCards: this.state.unlockedCards,
-            currentDeck: this.state.currentDeck
-        };
-        localStorage.setItem('enchantedRealmsData', JSON.stringify(data));
-    },
-
-    // Setup canvas for battle rendering
-    setupCanvas() {
-        this.state.canvas = document.getElementById('game-canvas');
-        this.state.ctx = this.state.canvas.getContext('2d');
-        
-        // Resize canvas to container
+        // Set canvas size
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
-    },
-
-    // Resize canvas to fit container
-    resizeCanvas() {
-        const container = document.querySelector('.battle-field');
-        if (container && this.state.canvas) {
-            this.state.canvas.width = container.clientWidth;
-            this.state.canvas.height = container.clientHeight;
-        }
-    },
-
-    // Initialize UI elements
-    initializeUI() {
-        this.updateHonorDisplay();
-        this.updateArenaDisplay();
-    },
-
-    // Start battle
-    startBattle() {
-        this.state.isPlaying = true;
-        this.state.battleTimeLeft = this.state.battleTime;
-        this.state.momentum = 3;
         
-        // Reset totems
-        this.resetTotems();
+        // Initialize game objects
+        this.initPlayer();
+        this.generateStars();
         
-        // Clear battlefield
-        this.state.playerUnits = [];
-        this.state.enemyUnits = [];
-        
-        // Prepare deck and hand
-        this.prepareDeckAndHand();
-        
-        // Apply arena background
-        this.applyArenaBackground();
+        // Setup event listeners
+        this.setupEventListeners();
         
         // Start game loop
-        this.startGameLoop();
+        this.gameLoop();
         
-        // Start battle timer
-        this.startBattleTimer();
+        console.log('Cosmic Defender initialized');
+    }
+    
+    resizeCanvas() {
+        const container = this.canvas.parentElement;
+        const rect = container.getBoundingClientRect();
         
-        console.log('Battle started');
-    },
-
-    // End battle
-    endBattle(result) {
-        this.state.isPlaying = false;
-        this.stopGameLoop();
+        // Maintain aspect ratio
+        const aspectRatio = this.canvasWidth / this.canvasHeight;
+        let width = rect.width;
+        let height = rect.height;
         
-        // Calculate honor change
-        let honorChange = 0;
-        if (result === 'victory') {
-            honorChange = 3;
-        } else if (result === 'defeat') {
-            honorChange = -1;
+        if (width / height > aspectRatio) {
+            width = height * aspectRatio;
+        } else {
+            height = width / aspectRatio;
         }
         
-        // Update honor points
-        this.state.honorPoints = Math.max(0, this.state.honorPoints + honorChange);
+        this.canvas.style.width = width + 'px';
+        this.canvas.style.height = height + 'px';
         
-        // Update unlocked cards and arena
-        this.state.unlockedCards = Cards.getUnlockedCards(this.state.honorPoints);
-        this.state.currentArena = Cards.getCurrentArena(this.state.honorPoints);
-        
-        // Save progress
-        this.savePlayerData();
-        
-        // Show result
-        this.showBattleResult(result, honorChange);
-        
-        console.log(`Battle ended: ${result}, Honor change: ${honorChange}`);
-    },
-
-    // Reset totems to full health
-    resetTotems() {
-        Object.keys(this.state.playerTotems).forEach(key => {
-            this.state.playerTotems[key].hp = this.state.playerTotems[key].maxHp;
+        // Update scale factor for mouse/touch input
+        this.scaleX = this.canvasWidth / width;
+        this.scaleY = this.canvasHeight / height;
+    }
+    
+    initPlayer() {
+        this.player = {
+            x: this.canvasWidth / 2,
+            y: this.canvasHeight - 60,
+            width: 40,
+            height: 30,
+            speed: 5,
+            shootCooldown: 0,
+            shootRate: 250, // milliseconds
+            color: '#00ff00',
+            trail: []
+        };
+    }
+    
+    generateStars() {
+        this.stars = [];
+        for (let i = 0; i < 100; i++) {
+            this.stars.push({
+                x: Math.random() * this.canvasWidth,
+                y: Math.random() * this.canvasHeight,
+                size: Math.random() * 2 + 0.5,
+                speed: Math.random() * 0.5 + 0.1,
+                opacity: Math.random() * 0.8 + 0.2
+            });
+        }
+    }
+    
+    setupEventListeners() {
+        // Keyboard input
+        document.addEventListener('keydown', (e) => {
+            this.keys[e.code] = true;
+            this.handleKeyPress(e);
         });
-        Object.keys(this.state.enemyTotems).forEach(key => {
-            this.state.enemyTotems[key].hp = this.state.enemyTotems[key].maxHp;
-        });
-        this.updateTotemUI();
-    },
-
-    // Prepare deck and initial hand
-    prepareDeckAndHand() {
-        // Shuffle deck
-        this.state.deckCards = [...this.state.currentDeck].sort(() => Math.random() - 0.5);
         
-        // Draw initial hand (4 cards)
-        this.state.hand = [];
-        for (let i = 0; i < 4; i++) {
-            this.drawCard();
+        document.addEventListener('keyup', (e) => {
+            this.keys[e.code] = false;
+        });
+        
+        // Mouse input
+        this.canvas.addEventListener('mousedown', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            this.mouse.x = (e.clientX - rect.left) * this.scaleX;
+            this.mouse.y = (e.clientY - rect.top) * this.scaleY;
+            this.mouse.pressed = true;
+        });
+        
+        this.canvas.addEventListener('mouseup', () => {
+            this.mouse.pressed = false;
+        });
+        
+        this.canvas.addEventListener('mousemove', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            this.mouse.x = (e.clientX - rect.left) * this.scaleX;
+            this.mouse.y = (e.clientY - rect.top) * this.scaleY;
+        });
+        
+        // Mobile touch controls
+        if (this.isMobile) {
+            this.setupMobileControls();
         }
         
-        this.updateHandUI();
-    },
-
-    // Draw a card from deck to hand
-    drawCard() {
-        if (this.state.deckCards.length > 0 && this.state.hand.length < 4) {
-            const cardId = this.state.deckCards.shift();
-            this.state.hand.push(cardId);
+        // Prevent context menu
+        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+    
+    setupMobileControls() {
+        const joystick = document.getElementById('mobileJoystick');
+        const knob = document.getElementById('joystickKnob');
+        const shootBtn = document.getElementById('mobileShoot');
+        
+        let joystickActive = false;
+        
+        // Joystick controls
+        const handleJoystickStart = (e) => {
+            e.preventDefault();
+            joystickActive = true;
+            const rect = joystick.getBoundingClientRect();
+            this.joystick.centerX = rect.left + rect.width / 2;
+            this.joystick.centerY = rect.top + rect.height / 2;
+            this.joystick.active = true;
+        };
+        
+        const handleJoystickMove = (e) => {
+            if (!joystickActive) return;
+            e.preventDefault();
             
-            // Refill deck if empty
-            if (this.state.deckCards.length === 0) {
-                this.state.deckCards = [...this.state.currentDeck].sort(() => Math.random() - 0.5);
+            const touch = e.touches ? e.touches[0] : e;
+            const deltaX = touch.clientX - this.joystick.centerX;
+            const deltaY = touch.clientY - this.joystick.centerY;
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            const maxDistance = 30;
+            
+            if (distance <= maxDistance) {
+                this.joystick.x = deltaX / maxDistance;
+                this.joystick.y = deltaY / maxDistance;
+                knob.style.transform = `translate(-50%, -50%) translate(${deltaX}px, ${deltaY}px)`;
+            } else {
+                const angle = Math.atan2(deltaY, deltaX);
+                this.joystick.x = Math.cos(angle);
+                this.joystick.y = Math.sin(angle);
+                knob.style.transform = `translate(-50%, -50%) translate(${Math.cos(angle) * maxDistance}px, ${Math.sin(angle) * maxDistance}px)`;
             }
+        };
+        
+        const handleJoystickEnd = (e) => {
+            e.preventDefault();
+            joystickActive = false;
+            this.joystick.active = false;
+            this.joystick.x = 0;
+            this.joystick.y = 0;
+            knob.style.transform = 'translate(-50%, -50%)';
+        };
+        
+        joystick.addEventListener('touchstart', handleJoystickStart);
+        joystick.addEventListener('mousedown', handleJoystickStart);
+        
+        document.addEventListener('touchmove', handleJoystickMove);
+        document.addEventListener('mousemove', handleJoystickMove);
+        
+        document.addEventListener('touchend', handleJoystickEnd);
+        document.addEventListener('mouseup', handleJoystickEnd);
+        
+        // Shoot button
+        let shootPressed = false;
+        shootBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            shootPressed = true;
+        });
+        
+        shootBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            shootPressed = false;
+        });
+        
+        shootBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            shootPressed = true;
+        });
+        
+        shootBtn.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            shootPressed = false;
+        });
+        
+        // Update mobile shoot state
+        setInterval(() => {
+            this.keys['Space'] = shootPressed;
+        }, 16);
+    }
+    
+    handleKeyPress(e) {
+        switch (e.code) {
+            case 'KeyP':
+                if (this.gameState === 'playing') {
+                    this.pauseGame();
+                } else if (this.gameState === 'paused') {
+                    this.resumeGame();
+                }
+                break;
+            case 'KeyM':
+                AudioManager.toggleMute();
+                break;
+            case 'Escape':
+                if (this.gameState === 'playing') {
+                    this.pauseGame();
+                }
+                break;
         }
-    },
-
-    // Play a card
-    playCard(cardId, lane) {
-        const card = Cards.getCard(cardId);
-        if (!card || this.state.momentum < card.cost) {
-            return false;
-        }
+    }
+    
+    startGame() {
+        this.gameState = 'playing';
+        this.resetGameState();
+        this.waveStartTime = Date.now();
+        this.showWaveMessage(`Wave ${this.wave}`);
+        AudioManager.playBackgroundMusic();
+    }
+    
+    resetGameState() {
+        this.score = 0;
+        this.wave = 1;
+        this.lives = 3;
+        this.health = this.maxHealth;
+        this.gameTime = 0;
+        this.enemiesDefeated = 0;
+        this.shotsFired = 0;
+        this.shotsHit = 0;
+        this.enemiesSpawned = 0;
+        this.waveComplete = false;
         
-        // Remove card from hand
-        const cardIndex = this.state.hand.indexOf(cardId);
-        if (cardIndex === -1) return false;
+        // Clear game objects
+        this.bullets = [];
+        this.enemies = [];
+        this.powerUps = [];
+        this.particles = [];
+        this.activePowerUps.clear();
         
-        this.state.hand.splice(cardIndex, 1);
-        this.state.momentum -= card.cost;
-        
-        // Create unit
-        this.spawnUnit(cardId, lane, 'player');
-        
-        // Draw new card
-        this.drawCard();
+        // Reset player
+        this.initPlayer();
         
         // Update UI
-        this.updateHandUI();
-        this.updateMomentumUI();
-        
-        return true;
-    },
-
-    // Spawn a unit on the battlefield
-    spawnUnit(cardId, lane, owner) {
-        const card = Cards.getCard(cardId);
-        if (!card) return;
-        
-        const unit = {
-            id: Math.random().toString(36).substr(2, 9),
-            cardId: cardId,
-            owner: owner,
-            lane: lane, // 0 = left, 1 = right
-            
-            // Stats from card
-            hp: card.hp,
-            maxHp: card.hp,
-            damage: card.damage,
-            speed: card.speed,
-            range: card.range,
-            special: card.special,
-            
-            // Position and state
-            x: owner === 'player' ? 50 : this.state.canvas.width - 50,
-            y: lane === 0 ? this.state.canvas.height * 0.3 : this.state.canvas.height * 0.7,
-            
-            // Combat state
-            target: null,
-            lastAttackTime: 0,
-            attackCooldown: 1000, // 1 second
-            
-            // Special effects
-            effects: [],
-            stealthTime: card.special === 'stealth' ? 2000 : 0,
-            
-            // Movement
-            moving: true,
-            direction: owner === 'player' ? 1 : -1
-        };
-        
-        // Add to appropriate army
-        if (owner === 'player') {
-            this.state.playerUnits.push(unit);
-        } else {
-            this.state.enemyUnits.push(unit);
-        }
-        
-        console.log(`${owner} spawned ${card.nameKey} in lane ${lane}`);
-    },
-
-    // Start momentum regeneration
-    startMomentumRegen() {
-        setInterval(() => {
-            if (this.state.isPlaying && this.state.momentum < this.state.maxMomentum) {
-                const arena = this.state.currentArena;
-                let regenRate = 1;
-                
-                // Apply arena passive
-                if (arena && arena.passive === 'momentum') {
-                    regenRate *= arena.passiveValue;
-                }
-                
-                this.state.momentum = Math.min(this.state.maxMomentum, this.state.momentum + regenRate);
-                this.updateMomentumUI();
-            }
-        }, this.state.momentumRegenRate);
-    },
-
-    // Start battle timer
-    startBattleTimer() {
-        const timerInterval = setInterval(() => {
-            if (!this.state.isPlaying) {
-                clearInterval(timerInterval);
-                return;
-            }
-            
-            this.state.battleTimeLeft--;
-            this.updateTimerUI();
-            
-            if (this.state.battleTimeLeft <= 0) {
-                clearInterval(timerInterval);
-                this.checkBattleEnd();
-            }
-        }, 1000);
-    },
-
-    // Check if battle should end
-    checkBattleEnd() {
-        // Check if main totem is destroyed
-        if (this.state.playerTotems.main.hp <= 0) {
-            this.endBattle('defeat');
-            return true;
-        }
-        if (this.state.enemyTotems.main.hp <= 0) {
-            this.endBattle('victory');
-            return true;
-        }
-        
-        // Check time limit
-        if (this.state.battleTimeLeft <= 0) {
-            const playerTotal = this.getTotalTotemHP('player');
-            const enemyTotal = this.getTotalTotemHP('enemy');
-            
-            if (playerTotal > enemyTotal) {
-                this.endBattle('victory');
-            } else if (enemyTotal > playerTotal) {
-                this.endBattle('defeat');
-            } else {
-                this.endBattle('draw');
-            }
-            return true;
-        }
-        
-        return false;
-    },
-
-    // Get total totem HP for a side
-    getTotalTotemHP(side) {
-        const totems = side === 'player' ? this.state.playerTotems : this.state.enemyTotems;
-        return totems.left.hp + totems.main.hp + totems.right.hp;
-    },
-
-    // Apply arena background
-    applyArenaBackground() {
-        const battleField = document.querySelector('.battle-field');
-        if (battleField && this.state.currentArena) {
-            battleField.className = `battle-field ${this.state.currentArena.background}`;
-        }
-    },
-
-    // Start game loop
-    startGameLoop() {
-        const gameLoop = (timestamp) => {
-            if (!this.state.isPlaying) return;
-            
-            const deltaTime = timestamp - this.state.lastFrameTime;
-            this.state.lastFrameTime = timestamp;
-            
-            // Update game state
-            this.updateUnits(deltaTime);
-            this.updateCombat(deltaTime);
-            this.applyArenaPassives(deltaTime);
-            
-            // Render
-            this.render();
-            
-            // Check for battle end
-            if (!this.checkBattleEnd()) {
-                this.state.animationId = requestAnimationFrame(gameLoop);
-            }
-        };
-        
-        this.state.animationId = requestAnimationFrame(gameLoop);
-    },
-
-    // Stop game loop
-    stopGameLoop() {
-        if (this.state.animationId) {
-            cancelAnimationFrame(this.state.animationId);
-            this.state.animationId = null;
-        }
-    },
-
-    // Update units (movement, AI, etc.)
-    updateUnits(deltaTime) {
-        // Update player units
-        this.state.playerUnits.forEach(unit => this.updateUnit(unit, deltaTime));
-        
-        // Update enemy units
-        this.state.enemyUnits.forEach(unit => this.updateUnit(unit, deltaTime));
-        
-        // Remove dead units
-        this.state.playerUnits = this.state.playerUnits.filter(unit => unit.hp > 0);
-        this.state.enemyUnits = this.state.enemyUnits.filter(unit => unit.hp > 0);
-    },
-
-    // Update individual unit
-    updateUnit(unit, deltaTime) {
-        // Update stealth
-        if (unit.stealthTime > 0) {
-            unit.stealthTime -= deltaTime;
-        }
-        
-        // Find target
-        if (!unit.target || unit.target.hp <= 0) {
-            unit.target = this.findTarget(unit);
-        }
-        
-        // Move towards target or totems
-        if (unit.target) {
-            const distance = Math.abs(unit.x - unit.target.x);
-            if (distance > unit.range * 20) { // Scale range for pixels
-                unit.x += unit.direction * unit.speed * (deltaTime / 16.67); // 60 FPS normalization
-                unit.moving = true;
-            } else {
-                unit.moving = false;
-            }
-        } else {
-            // Move towards enemy totems
-            const targetX = unit.owner === 'player' ? this.state.canvas.width - 100 : 100;
-            if (Math.abs(unit.x - targetX) > 50) {
-                unit.x += unit.direction * unit.speed * (deltaTime / 16.67);
-                unit.moving = true;
-            } else {
-                unit.moving = false;
-            }
-        }
-    },
-
-    // Find target for unit
-    findTarget(unit) {
-        const enemies = unit.owner === 'player' ? this.state.enemyUnits : this.state.playerUnits;
-        
-        // Find closest enemy in same lane
-        let closestEnemy = null;
-        let closestDistance = Infinity;
-        
-        enemies.forEach(enemy => {
-            if (enemy.lane === unit.lane) {
-                const distance = Math.abs(unit.x - enemy.x);
-                if (distance < closestDistance && distance <= unit.range * 20) {
-                    closestDistance = distance;
-                    closestEnemy = enemy;
-                }
-            }
-        });
-        
-        return closestEnemy;
-    },
-
-    // Update combat
-    updateCombat(deltaTime) {
-        // Player units attacking
-        this.state.playerUnits.forEach(unit => {
-            this.updateUnitCombat(unit, deltaTime);
-        });
-        
-        // Enemy units attacking
-        this.state.enemyUnits.forEach(unit => {
-            this.updateUnitCombat(unit, deltaTime);
-        });
-    },
-
-    // Update unit combat
-    updateUnitCombat(unit, deltaTime) {
-        const now = Date.now();
-        
-        if (now - unit.lastAttackTime < unit.attackCooldown) {
-            return;
-        }
-        
-        // Attack target or totem
-        if (unit.target && Math.abs(unit.x - unit.target.x) <= unit.range * 20) {
-            this.unitAttack(unit, unit.target);
-            unit.lastAttackTime = now;
-        } else if (!unit.moving) {
-            // Attack totem
-            this.attackTotem(unit);
-            unit.lastAttackTime = now;
-        }
-    },
-
-    // Unit attacks another unit
-    unitAttack(attacker, target) {
-        let damage = attacker.damage;
-        
-        // Apply special abilities
-        if (attacker.special === 'giant-killer' && target.maxHp > 300) {
-            damage *= 2;
-        }
-        
-        // Apply damage
-        target.hp -= damage;
-        
-        // Apply special effects
-        this.applySpecialEffects(attacker, target, damage);
-        
-        // Show damage number
-        this.showDamageNumber(target.x, target.y, damage);
-        
-        console.log(`${attacker.cardId} attacks ${target.cardId} for ${damage} damage`);
-    },
-
-    // Attack totem
-    attackTotem(unit) {
-        const totems = unit.owner === 'player' ? this.state.enemyTotems : this.state.playerTotems;
-        let targetTotem;
-        
-        // Determine which totem to attack based on position
-        if (unit.lane === 0) {
-            targetTotem = totems.left;
-        } else {
-            targetTotem = totems.right;
-        }
-        
-        // If side totem is destroyed, attack main totem
-        if (targetTotem.hp <= 0) {
-            targetTotem = totems.main;
-        }
-        
-        if (targetTotem.hp > 0) {
-            targetTotem.hp = Math.max(0, targetTotem.hp - unit.damage);
-            this.updateTotemUI();
-            
-            console.log(`${unit.cardId} attacks totem for ${unit.damage} damage`);
-        }
-    },
-
-    // Apply special effects
-    applySpecialEffects(attacker, target, damage) {
-        switch (attacker.special) {
-            case 'lifesteal':
-                attacker.hp = Math.min(attacker.maxHp, attacker.hp + damage * 0.25);
-                break;
-            case 'burn':
-                // Add burn effect
-                target.effects.push({
-                    type: 'burn',
-                    damage: damage * 0.1,
-                    duration: 3000,
-                    interval: 500,
-                    lastTick: Date.now()
-                });
-                break;
-            case 'slow':
-                target.speed *= 0.5;
-                setTimeout(() => {
-                    target.speed /= 0.5;
-                }, 3000);
-                break;
-        }
-    },
-
-    // Apply arena passive effects
-    applyArenaPassives(deltaTime) {
-        const arena = this.state.currentArena;
-        if (!arena) return;
-        
-        switch (arena.passive) {
-            case 'regeneration':
-                // Heal totems
-                Object.values(this.state.playerTotems).forEach(totem => {
-                    if (totem.hp > 0 && totem.hp < totem.maxHp) {
-                        totem.hp = Math.min(totem.maxHp, totem.hp + arena.passiveValue * (deltaTime / 1000));
-                    }
-                });
-                Object.values(this.state.enemyTotems).forEach(totem => {
-                    if (totem.hp > 0 && totem.hp < totem.maxHp) {
-                        totem.hp = Math.min(totem.maxHp, totem.hp + arena.passiveValue * (deltaTime / 1000));
-                    }
-                });
-                this.updateTotemUI();
-                break;
-                
-            case 'burn':
-                // Damage all units
-                [...this.state.playerUnits, ...this.state.enemyUnits].forEach(unit => {
-                    unit.hp -= arena.passiveValue * (deltaTime / 1000);
-                });
-                break;
-        }
-    },
-
-    // Render game
-    render() {
-        if (!this.state.ctx) return;
-        
-        const ctx = this.state.ctx;
-        const canvas = this.state.canvas;
-        
-        // Clear canvas
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw lanes
-        this.drawLanes(ctx, canvas);
-        
-        // Draw units
-        this.state.playerUnits.forEach(unit => this.drawUnit(ctx, unit, '#4299e1'));
-        this.state.enemyUnits.forEach(unit => this.drawUnit(ctx, unit, '#e53e3e'));
-    },
-
-    // Draw lanes
-    drawLanes(ctx, canvas) {
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([10, 10]);
-        
-        // Lane dividers
-        const laneHeight = canvas.height / 2;
-        ctx.beginPath();
-        ctx.moveTo(0, laneHeight);
-        ctx.lineTo(canvas.width, laneHeight);
-        ctx.stroke();
-        
-        ctx.setLineDash([]);
-    },
-
-    // Draw unit
-    drawUnit(ctx, unit, color) {
-        if (unit.stealthTime > 0) {
-            ctx.globalAlpha = 0.3;
-        }
-        
-        // Draw unit circle
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(unit.x, unit.y, 15, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Draw health bar
-        const barWidth = 30;
-        const barHeight = 4;
-        const healthPercent = unit.hp / unit.maxHp;
-        
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
-        ctx.fillRect(unit.x - barWidth/2, unit.y - 25, barWidth, barHeight);
-        
-        ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
-        ctx.fillRect(unit.x - barWidth/2, unit.y - 25, barWidth * healthPercent, barHeight);
-        
-        ctx.globalAlpha = 1;
-    },
-
-    // Show damage number
-    showDamageNumber(x, y, damage) {
-        // This would create floating damage numbers in a real implementation
-        console.log(`Damage: ${damage} at (${x}, ${y})`);
-    },
-
-    // Show battle result
-    showBattleResult(result, honorChange) {
-        const resultMessage = document.getElementById('result-message');
-        const honorChangeEl = document.getElementById('honor-change');
-        
-        if (result === 'victory') {
-            resultMessage.textContent = Localization.get('victory');
-            resultMessage.className = 'result-message victory';
-            honorChangeEl.textContent = Localization.get('honorGained') + honorChange;
-            honorChangeEl.className = 'honor-change positive';
-        } else if (result === 'defeat') {
-            resultMessage.textContent = Localization.get('defeat');
-            resultMessage.className = 'result-message defeat';
-            honorChangeEl.textContent = Localization.get('honorLost') + Math.abs(honorChange);
-            honorChangeEl.className = 'honor-change negative';
-        }
-        
-        UI.showScreen('result');
-    },
-
-    // Update UI elements
-    updateHonorDisplay() {
-        const honorEl = document.getElementById('honor-points');
-        if (honorEl) {
-            honorEl.textContent = this.state.honorPoints;
-        }
-    },
-
-    updateArenaDisplay() {
-        const arenaEl = document.getElementById('current-arena');
-        if (arenaEl && this.state.currentArena) {
-            arenaEl.textContent = Localization.get(this.state.currentArena.nameKey);
-        }
-    },
-
-    updateMomentumUI() {
-        const momentumEl = document.getElementById('momentum-text');
-        if (momentumEl) {
-            momentumEl.textContent = `${Math.floor(this.state.momentum)}/${this.state.maxMomentum}`;
-        }
-    },
-
-    updateTimerUI() {
-        const timerEl = document.getElementById('battle-timer');
-        if (timerEl) {
-            const minutes = Math.floor(this.state.battleTimeLeft / 60);
-            const seconds = this.state.battleTimeLeft % 60;
-            timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        }
-    },
-
-    updateTotemUI() {
-        // Update player totems
-        this.updateTotemHealthBar('player-left-totem', this.state.playerTotems.left);
-        this.updateTotemHealthBar('player-main-totem', this.state.playerTotems.main);
-        this.updateTotemHealthBar('player-right-totem', this.state.playerTotems.right);
-        
-        // Update enemy totems
-        this.updateTotemHealthBar('enemy-left-totem', this.state.enemyTotems.left);
-        this.updateTotemHealthBar('enemy-main-totem', this.state.enemyTotems.main);
-        this.updateTotemHealthBar('enemy-right-totem', this.state.enemyTotems.right);
-    },
-
-    updateTotemHealthBar(elementId, totem) {
-        const element = document.getElementById(elementId);
-        if (element) {
-            const healthFill = element.querySelector('.health-fill');
-            const healthText = element.querySelector('.health-text');
-            
-            if (healthFill && healthText) {
-                const percentage = (totem.hp / totem.maxHp) * 100;
-                healthFill.style.width = percentage + '%';
-                healthText.textContent = Math.ceil(totem.hp);
-                
-                // Change color based on health
-                if (percentage > 60) {
-                    healthFill.style.background = 'linear-gradient(90deg, #48bb78, #38a169)';
-                } else if (percentage > 30) {
-                    healthFill.style.background = 'linear-gradient(90deg, #ed8936, #dd6b20)';
-                } else {
-                    healthFill.style.background = 'linear-gradient(90deg, #e53e3e, #c53030)';
-                }
-            }
-        }
-    },
-
-    updateHandUI() {
-        const handContainer = document.getElementById('hand-cards');
-        if (!handContainer) return;
-        
-        handContainer.innerHTML = '';
-        
-        this.state.hand.forEach((cardId, index) => {
-            const cardElement = Cards.createCardElement(cardId, true);
-            if (cardElement) {
-                const card = Cards.getCard(cardId);
-                
-                // Disable if not enough momentum
-                if (this.state.momentum < card.cost) {
-                    cardElement.classList.add('disabled');
-                }
-                
-                // Add click handler
-                cardElement.addEventListener('click', () => {
-                    if (!cardElement.classList.contains('disabled')) {
-                        this.handleCardPlay(cardId);
-                    }
-                });
-                
-                handContainer.appendChild(cardElement);
-            }
-        });
-    },
-
-    // Handle card play (player needs to select lane)
-    handleCardPlay(cardId) {
-        // Use UI lane selection
-        UI.handleCardPlayWithLaneSelection(cardId);
+        this.updateUI();
     }
-};
-
-// Export for use in other modules
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = Game;
+    
+    pauseGame() {
+        if (this.gameState === 'playing') {
+            this.gameState = 'paused';
+            AudioManager.pauseBackgroundMusic();
+            UI.showPauseScreen();
+        }
+    }
+    
+    resumeGame() {
+        if (this.gameState === 'paused') {
+            this.gameState = 'playing';
+            AudioManager.resumeBackgroundMusic();
+            UI.hidePauseScreen();
+        }
+    }
+    
+    gameOver() {
+        this.gameState = 'gameOver';
+        AudioManager.stopBackgroundMusic();
+        AudioManager.playSound('gameOver');
+        
+        // Calculate final stats
+        const accuracy = this.shotsFired > 0 ? Math.round((this.shotsHit / this.shotsFired) * 100) : 0;
+        const finalStats = {
+            score: this.score,
+            wave: this.wave,
+            enemiesDefeated: this.enemiesDefeated,
+            accuracy: accuracy
+        };
+        
+        // Check for high score
+        const isHighScore = ScoreManager.addScore(this.score, this.wave, this.enemiesDefeated, accuracy);
+        
+        UI.showGameOverScreen(finalStats, isHighScore);
+    }
+    
+    gameLoop(currentTime = 0) {
+        const deltaTime = currentTime - this.lastFrameTime;
+        
+        if (deltaTime >= this.frameInterval) {
+            this.update(deltaTime);
+            this.render();
+            this.lastFrameTime = currentTime;
+        }
+        
+        this.animationId = requestAnimationFrame((time) => this.gameLoop(time));
+    }
+    
+    update(deltaTime) {
+        if (this.gameState !== 'playing') return;
+        
+        this.gameTime += deltaTime;
+        
+        // Update player
+        this.updatePlayer(deltaTime);
+        
+        // Update bullets
+        this.updateBullets(deltaTime);
+        
+        // Update enemies
+        this.updateEnemies(deltaTime);
+        
+        // Update power-ups
+        this.updatePowerUps(deltaTime);
+        
+        // Update particles
+        this.updateParticles(deltaTime);
+        
+        // Update stars
+        this.updateStars(deltaTime);
+        
+        // Spawn enemies
+        this.spawnEnemies(deltaTime);
+        
+        // Check collisions
+        this.checkCollisions();
+        
+        // Update power-up timers
+        this.updateActivePowerUps(deltaTime);
+        
+        // Check wave completion
+        this.checkWaveCompletion();
+        
+        // Update UI
+        this.updateUI();
+    }
+    
+    updatePlayer(deltaTime) {
+        const player = this.player;
+        
+        // Handle movement
+        let moveX = 0;
+        let moveY = 0;
+        
+        // Keyboard input
+        if (this.keys['KeyA'] || this.keys['ArrowLeft']) moveX -= 1;
+        if (this.keys['KeyD'] || this.keys['ArrowRight']) moveX += 1;
+        if (this.keys['KeyW'] || this.keys['ArrowUp']) moveY -= 1;
+        if (this.keys['KeyS'] || this.keys['ArrowDown']) moveY += 1;
+        
+        // Mobile joystick input
+        if (this.joystick.active) {
+            moveX += this.joystick.x;
+            moveY += this.joystick.y;
+        }
+        
+        // Normalize diagonal movement
+        if (moveX !== 0 && moveY !== 0) {
+            moveX *= 0.707;
+            moveY *= 0.707;
+        }
+        
+        // Apply movement
+        player.x += moveX * player.speed;
+        player.y += moveY * player.speed;
+        
+        // Keep player in bounds
+        player.x = Math.max(player.width / 2, Math.min(this.canvasWidth - player.width / 2, player.x));
+        player.y = Math.max(player.height / 2, Math.min(this.canvasHeight - player.height / 2, player.y));
+        
+        // Handle shooting
+        if (player.shootCooldown > 0) {
+            player.shootCooldown -= deltaTime;
+        }
+        
+        if ((this.keys['Space'] || this.mouse.pressed) && player.shootCooldown <= 0) {
+            this.playerShoot();
+        }
+        
+        // Update trail
+        player.trail.push({ x: player.x, y: player.y, time: this.gameTime });
+        player.trail = player.trail.filter(point => this.gameTime - point.time < 200);
+    }
+    
+    playerShoot() {
+        const player = this.player;
+        const multiShot = this.activePowerUps.has('multiShot');
+        const rapidFire = this.activePowerUps.has('rapidFire');
+        
+        // Adjust shoot rate based on power-ups
+        const shootRate = rapidFire ? player.shootRate * 0.3 : player.shootRate;
+        player.shootCooldown = shootRate;
+        
+        if (multiShot) {
+            // Shoot 3 bullets in a spread
+            for (let i = -1; i <= 1; i++) {
+                this.createBullet(player.x + i * 15, player.y - 10, 0, -8, '#00ff00');
+            }
+            this.shotsFired += 3;
+        } else {
+            // Single bullet
+            this.createBullet(player.x, player.y - 10, 0, -8, '#00ff00');
+            this.shotsFired++;
+        }
+        
+        AudioManager.playSound('shoot');
+    }
+    
+    createBullet(x, y, vx, vy, color = '#00ff00', owner = 'player') {
+        this.bullets.push({
+            x, y, vx, vy, color, owner,
+            width: 4,
+            height: 8,
+            damage: 25,
+            trail: []
+        });
+    }
+    
+    updateBullets(deltaTime) {
+        for (let i = this.bullets.length - 1; i >= 0; i--) {
+            const bullet = this.bullets[i];
+            
+            bullet.x += bullet.vx;
+            bullet.y += bullet.vy;
+            
+            // Add to trail
+            bullet.trail.push({ x: bullet.x, y: bullet.y, time: this.gameTime });
+            bullet.trail = bullet.trail.filter(point => this.gameTime - point.time < 100);
+            
+            // Remove bullets that are off-screen
+            if (bullet.y < -10 || bullet.y > this.canvasHeight + 10 || 
+                bullet.x < -10 || bullet.x > this.canvasWidth + 10) {
+                this.bullets.splice(i, 1);
+            }
+        }
+    }
+    
+    spawnEnemies(deltaTime) {
+        if (this.waveComplete || this.enemiesSpawned >= this.enemiesPerWave) return;
+        
+        if (Date.now() - this.lastEnemySpawn > this.enemySpawnRate) {
+            this.spawnEnemy();
+            this.lastEnemySpawn = Date.now();
+            this.enemiesSpawned++;
+        }
+    }
+    
+    spawnEnemy() {
+        const enemyTypes = [
+            { type: 'basic', health: 50, speed: 2, score: 100, color: '#ff4444' },
+            { type: 'fast', health: 30, speed: 4, score: 150, color: '#ffff44' },
+            { type: 'tank', health: 100, speed: 1, score: 200, color: '#ff8844' },
+            { type: 'shooter', health: 40, speed: 1.5, score: 180, color: '#ff44ff' }
+        ];
+        
+        // Choose enemy type based on wave
+        let availableTypes = enemyTypes.slice(0, Math.min(this.wave, enemyTypes.length));
+        const enemyData = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+        
+        const enemy = {
+            x: Math.random() * (this.canvasWidth - 40) + 20,
+            y: -30,
+            width: 30,
+            height: 30,
+            vx: (Math.random() - 0.5) * 2,
+            vy: enemyData.speed,
+            health: enemyData.health + Math.floor(this.wave * 10),
+            maxHealth: enemyData.health + Math.floor(this.wave * 10),
+            type: enemyData.type,
+            color: enemyData.color,
+            score: enemyData.score,
+            lastShot: 0,
+            shootRate: 2000,
+            trail: []
+        };
+        
+        this.enemies.push(enemy);
+        this.createParticles(enemy.x, enemy.y, 5, enemy.color, 'spawn');
+    }
+    
+    updateEnemies(deltaTime) {
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+            const enemy = this.enemies[i];
+            
+            // Move enemy
+            enemy.x += enemy.vx;
+            enemy.y += enemy.vy;
+            
+            // Add to trail
+            enemy.trail.push({ x: enemy.x, y: enemy.y, time: this.gameTime });
+            enemy.trail = enemy.trail.filter(point => this.gameTime - point.time < 150);
+            
+            // Enemy shooting (for shooter type)
+            if (enemy.type === 'shooter' && Date.now() - enemy.lastShot > enemy.shootRate) {
+                const dx = this.player.x - enemy.x;
+                const dy = this.player.y - enemy.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < 300) {
+                    const speed = 3;
+                    this.createBullet(
+                        enemy.x, 
+                        enemy.y + 15, 
+                        (dx / distance) * speed, 
+                        (dy / distance) * speed, 
+                        '#ff0000', 
+                        'enemy'
+                    );
+                    enemy.lastShot = Date.now();
+                }
+            }
+            
+            // Remove enemies that are off-screen
+            if (enemy.y > this.canvasHeight + 50) {
+                this.enemies.splice(i, 1);
+                this.takeDamage(10); // Player takes damage for missed enemy
+            }
+            
+            // Keep enemies in horizontal bounds
+            if (enemy.x <= 15 || enemy.x >= this.canvasWidth - 15) {
+                enemy.vx *= -1;
+            }
+        }
+    }
+    
+    updatePowerUps(deltaTime) {
+        for (let i = this.powerUps.length - 1; i >= 0; i--) {
+            const powerUp = this.powerUps[i];
+            
+            powerUp.y += powerUp.speed;
+            powerUp.rotation += powerUp.rotationSpeed;
+            
+            // Remove power-ups that are off-screen
+            if (powerUp.y > this.canvasHeight + 20) {
+                this.powerUps.splice(i, 1);
+            }
+        }
+    }
+    
+    updateParticles(deltaTime) {
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            const particle = this.particles[i];
+            
+            particle.x += particle.vx;
+            particle.y += particle.vy;
+            particle.life -= deltaTime;
+            particle.opacity = particle.life / particle.maxLife;
+            
+            if (particle.life <= 0) {
+                this.particles.splice(i, 1);
+            }
+        }
+    }
+    
+    updateStars(deltaTime) {
+        for (const star of this.stars) {
+            star.y += star.speed;
+            
+            if (star.y > this.canvasHeight) {
+                star.y = -5;
+                star.x = Math.random() * this.canvasWidth;
+            }
+        }
+    }
+    
+    updateActivePowerUps(deltaTime) {
+        for (const [type, powerUp] of this.activePowerUps) {
+            powerUp.duration -= deltaTime;
+            
+            if (powerUp.duration <= 0) {
+                this.activePowerUps.delete(type);
+                UI.removePowerUpIcon(type);
+            }
+        }
+    }
+    
+    checkCollisions() {
+        // Player bullets vs enemies
+        for (let i = this.bullets.length - 1; i >= 0; i--) {
+            const bullet = this.bullets[i];
+            if (bullet.owner !== 'player') continue;
+            
+            for (let j = this.enemies.length - 1; j >= 0; j--) {
+                const enemy = this.enemies[j];
+                
+                if (this.isColliding(bullet, enemy)) {
+                    // Damage enemy
+                    enemy.health -= bullet.damage;
+                    this.bullets.splice(i, 1);
+                    this.shotsHit++;
+                    
+                    // Create hit particles
+                    this.createParticles(enemy.x, enemy.y, 8, '#ffff00', 'explosion');
+                    
+                    if (enemy.health <= 0) {
+                        // Enemy destroyed
+                        this.score += enemy.score;
+                        this.enemiesDefeated++;
+                        this.enemies.splice(j, 1);
+                        
+                        // Create explosion
+                        this.createParticles(enemy.x, enemy.y, 15, enemy.color, 'explosion');
+                        AudioManager.playSound('explosion');
+                        
+                        // Chance to spawn power-up
+                        if (Math.random() < this.powerUpSpawnChance) {
+                            this.spawnPowerUp(enemy.x, enemy.y);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        
+        // Enemy bullets vs player
+        for (let i = this.bullets.length - 1; i >= 0; i--) {
+            const bullet = this.bullets[i];
+            if (bullet.owner !== 'enemy') continue;
+            
+            if (this.isColliding(bullet, this.player)) {
+                this.bullets.splice(i, 1);
+                this.takeDamage(15);
+                this.createParticles(this.player.x, this.player.y, 5, '#ff0000', 'hit');
+            }
+        }
+        
+        // Player vs enemies
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+            const enemy = this.enemies[i];
+            
+            if (this.isColliding(this.player, enemy)) {
+                this.enemies.splice(i, 1);
+                this.takeDamage(25);
+                this.createParticles(this.player.x, this.player.y, 10, '#ff0000', 'explosion');
+                AudioManager.playSound('hit');
+            }
+        }
+        
+        // Player vs power-ups
+        for (let i = this.powerUps.length - 1; i >= 0; i--) {
+            const powerUp = this.powerUps[i];
+            
+            if (this.isColliding(this.player, powerUp)) {
+                this.collectPowerUp(powerUp);
+                this.powerUps.splice(i, 1);
+            }
+        }
+    }
+    
+    isColliding(obj1, obj2) {
+        return obj1.x < obj2.x + obj2.width &&
+               obj1.x + obj1.width > obj2.x &&
+               obj1.y < obj2.y + obj2.height &&
+               obj1.y + obj1.height > obj2.y;
+    }
+    
+    takeDamage(amount) {
+        if (this.activePowerUps.has('shield')) return;
+        
+        this.health -= amount;
+        this.health = Math.max(0, this.health);
+        
+        if (this.health <= 0) {
+            this.lives--;
+            if (this.lives <= 0) {
+                this.gameOver();
+            } else {
+                this.health = this.maxHealth;
+                this.createParticles(this.player.x, this.player.y, 20, '#00ff00', 'respawn');
+            }
+        }
+    }
+    
+    spawnPowerUp(x, y) {
+        const powerUpTypes = [
+            { type: 'rapidFire', icon: '🔥', color: '#ff4400' },
+            { type: 'multiShot', icon: '💥', color: '#ff8800' },
+            { type: 'shield', icon: '🛡️', color: '#0088ff' },
+            { type: 'health', icon: '❤️', color: '#ff0088' }
+        ];
+        
+        const powerUpData = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+        
+        this.powerUps.push({
+            x: x,
+            y: y,
+            width: 25,
+            height: 25,
+            type: powerUpData.type,
+            icon: powerUpData.icon,
+            color: powerUpData.color,
+            speed: 2,
+            rotation: 0,
+            rotationSpeed: 0.1
+        });
+    }
+    
+    collectPowerUp(powerUp) {
+        switch (powerUp.type) {
+            case 'rapidFire':
+                this.activePowerUps.set('rapidFire', { duration: 10000 });
+                break;
+            case 'multiShot':
+                this.activePowerUps.set('multiShot', { duration: 8000 });
+                break;
+            case 'shield':
+                this.activePowerUps.set('shield', { duration: 5000 });
+                break;
+            case 'health':
+                this.health = Math.min(this.maxHealth, this.health + 30);
+                break;
+        }
+        
+        if (powerUp.type !== 'health') {
+            UI.addPowerUpIcon(powerUp.type, powerUp.icon);
+        }
+        
+        this.createParticles(powerUp.x, powerUp.y, 10, powerUp.color, 'collect');
+        AudioManager.playSound('powerUp');
+    }
+    
+    createParticles(x, y, count, color, type = 'explosion') {
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 * i) / count;
+            const speed = type === 'explosion' ? Math.random() * 4 + 2 : Math.random() * 2 + 1;
+            
+            this.particles.push({
+                x: x,
+                y: y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                color: color,
+                size: Math.random() * 3 + 1,
+                life: type === 'explosion' ? 500 : 300,
+                maxLife: type === 'explosion' ? 500 : 300,
+                opacity: 1
+            });
+        }
+    }
+    
+    checkWaveCompletion() {
+        if (this.enemiesSpawned >= this.enemiesPerWave && this.enemies.length === 0 && !this.waveComplete) {
+            this.waveComplete = true;
+            this.wave++;
+            this.enemiesSpawned = 0;
+            this.enemiesPerWave += 2;
+            this.enemySpawnRate = Math.max(500, this.enemySpawnRate - 100);
+            
+            setTimeout(() => {
+                this.waveComplete = false;
+                this.waveStartTime = Date.now();
+                this.showWaveMessage(`Wave ${this.wave}`);
+            }, 2000);
+        }
+    }
+    
+    showWaveMessage(message) {
+        const waveMessageEl = document.getElementById('waveMessage');
+        waveMessageEl.textContent = message;
+        waveMessageEl.style.display = 'block';
+        
+        setTimeout(() => {
+            waveMessageEl.style.display = 'none';
+        }, 3000);
+    }
+    
+    updateUI() {
+        document.getElementById('currentScore').textContent = this.score;
+        document.getElementById('currentWave').textContent = this.wave;
+        document.getElementById('currentLives').textContent = this.lives;
+        
+        const healthFill = document.getElementById('healthFill');
+        const healthPercent = (this.health / this.maxHealth) * 100;
+        healthFill.style.width = healthPercent + '%';
+        
+        // Update health bar color
+        if (healthPercent > 60) {
+            healthFill.style.background = 'linear-gradient(90deg, #00ff00, #88ff00)';
+        } else if (healthPercent > 30) {
+            healthFill.style.background = 'linear-gradient(90deg, #ffff00, #ff8800)';
+        } else {
+            healthFill.style.background = 'linear-gradient(90deg, #ff0000, #ff4400)';
+        }
+    }
+    
+    render() {
+        // Clear canvas
+        this.ctx.fillStyle = '#000011';
+        this.ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
+        
+        // Draw stars
+        this.drawStars();
+        
+        if (this.gameState === 'playing') {
+            // Draw game objects
+            this.drawPlayer();
+            this.drawBullets();
+            this.drawEnemies();
+            this.drawPowerUps();
+        }
+        
+        // Draw particles
+        this.drawParticles();
+    }
+    
+    drawStars() {
+        this.ctx.save();
+        for (const star of this.stars) {
+            this.ctx.globalAlpha = star.opacity;
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.fillRect(star.x, star.y, star.size, star.size);
+        }
+        this.ctx.restore();
+    }
+    
+    drawPlayer() {
+        const player = this.player;
+        
+        // Draw trail
+        this.ctx.save();
+        for (let i = 0; i < player.trail.length; i++) {
+            const point = player.trail[i];
+            const alpha = i / player.trail.length * 0.5;
+            this.ctx.globalAlpha = alpha;
+            this.ctx.fillStyle = player.color;
+            this.ctx.fillRect(point.x - 2, point.y - 2, 4, 4);
+        }
+        this.ctx.restore();
+        
+        // Draw player ship
+        this.ctx.save();
+        this.ctx.translate(player.x, player.y);
+        
+        // Shield effect
+        if (this.activePowerUps.has('shield')) {
+            this.ctx.strokeStyle = '#00aaff';
+            this.ctx.lineWidth = 3;
+            this.ctx.beginPath();
+            this.ctx.arc(0, 0, 25, 0, Math.PI * 2);
+            this.ctx.stroke();
+        }
+        
+        // Draw ship
+        this.ctx.fillStyle = player.color;
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, -15);
+        this.ctx.lineTo(-10, 10);
+        this.ctx.lineTo(0, 5);
+        this.ctx.lineTo(10, 10);
+        this.ctx.closePath();
+        this.ctx.fill();
+        
+        this.ctx.restore();
+    }
+    
+    drawBullets() {
+        for (const bullet of this.bullets) {
+            // Draw trail
+            this.ctx.save();
+            for (let i = 0; i < bullet.trail.length; i++) {
+                const point = bullet.trail[i];
+                const alpha = (i / bullet.trail.length) * 0.8;
+                this.ctx.globalAlpha = alpha;
+                this.ctx.fillStyle = bullet.color;
+                this.ctx.fillRect(point.x - 1, point.y - 1, 2, 2);
+            }
+            this.ctx.restore();
+            
+            // Draw bullet
+            this.ctx.fillStyle = bullet.color;
+            this.ctx.fillRect(bullet.x - bullet.width/2, bullet.y - bullet.height/2, bullet.width, bullet.height);
+        }
+    }
+    
+    drawEnemies() {
+        for (const enemy of this.enemies) {
+            // Draw trail
+            this.ctx.save();
+            for (let i = 0; i < enemy.trail.length; i++) {
+                const point = enemy.trail[i];
+                const alpha = (i / enemy.trail.length) * 0.3;
+                this.ctx.globalAlpha = alpha;
+                this.ctx.fillStyle = enemy.color;
+                this.ctx.fillRect(point.x - 1, point.y - 1, 2, 2);
+            }
+            this.ctx.restore();
+            
+            // Draw enemy
+            this.ctx.fillStyle = enemy.color;
+            this.ctx.fillRect(enemy.x - enemy.width/2, enemy.y - enemy.height/2, enemy.width, enemy.height);
+            
+            // Draw health bar
+            const healthPercent = enemy.health / enemy.maxHealth;
+            this.ctx.fillStyle = '#ff0000';
+            this.ctx.fillRect(enemy.x - 15, enemy.y - 20, 30, 3);
+            this.ctx.fillStyle = '#00ff00';
+            this.ctx.fillRect(enemy.x - 15, enemy.y - 20, 30 * healthPercent, 3);
+        }
+    }
+    
+    drawPowerUps() {
+        for (const powerUp of this.powerUps) {
+            this.ctx.save();
+            this.ctx.translate(powerUp.x, powerUp.y);
+            this.ctx.rotate(powerUp.rotation);
+            
+            // Draw glow
+            this.ctx.shadowColor = powerUp.color;
+            this.ctx.shadowBlur = 10;
+            
+            this.ctx.fillStyle = powerUp.color;
+            this.ctx.fillRect(-powerUp.width/2, -powerUp.height/2, powerUp.width, powerUp.height);
+            
+            // Draw icon
+            this.ctx.shadowBlur = 0;
+            this.ctx.font = '20px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(powerUp.icon, 0, 5);
+            
+            this.ctx.restore();
+        }
+    }
+    
+    drawParticles() {
+        for (const particle of this.particles) {
+            this.ctx.save();
+            this.ctx.globalAlpha = particle.opacity;
+            this.ctx.fillStyle = particle.color;
+            this.ctx.fillRect(particle.x - particle.size/2, particle.y - particle.size/2, particle.size, particle.size);
+            this.ctx.restore();
+        }
+    }
+    
+    destroy() {
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+        }
+    }
 }
+
+// Initialize game instance
+let game = null;

@@ -3,141 +3,217 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enchanted Realms Battle</title>
+    <title>🚀 Cosmic Defender</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="app">
-        <!-- Main Menu Screen -->
-        <div id="menu-screen" class="screen active">
-            <div class="menu-container">
-                <h1 id="game-title">Enchanted Realms Battle</h1>
-                <div class="player-stats">
-                    <div class="honor-display">
-                        <span id="honor-label">Honor Points</span>: <span id="honor-points">0</span>
-                    </div>
-                    <div class="arena-display">
-                        <span id="current-arena-label">Current Arena</span>: <span id="current-arena">Forest Glade</span>
-                    </div>
+    <div id="gameContainer">
+        <!-- Start Screen -->
+        <div id="startScreen" class="screen active">
+            <div class="title-container">
+                <h1 class="game-title">🚀 COSMIC DEFENDER</h1>
+                <p class="game-subtitle">Protect Earth from the alien invasion!</p>
+                
+                <div class="menu-options">
+                    <button id="startButton" class="menu-btn primary">START GAME</button>
+                    <button id="instructionsButton" class="menu-btn">HOW TO PLAY</button>
+                    <button id="highScoresButton" class="menu-btn">HIGH SCORES</button>
                 </div>
-                <div class="menu-buttons">
-                    <button id="play-button" class="menu-btn">Play Battle</button>
-                    <button id="deck-button" class="menu-btn">Deck Builder</button>
-                    <button id="cards-button" class="menu-btn">Card Collection</button>
-                </div>
-                <div class="language-selector">
-                    <label for="language-select" id="language-label">Language:</label>
-                    <select id="language-select">
-                        <option value="en">English</option>
-                        <option value="tr">Türkçe</option>
-                    </select>
+                
+                <div class="stats-display">
+                    <div class="stat">
+                        <span class="stat-label">Best Score:</span>
+                        <span id="bestScore" class="stat-value">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Games Played:</span>
+                        <span id="gamesPlayed" class="stat-value">0</span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Deck Builder Screen -->
-        <div id="deck-screen" class="screen">
-            <div class="deck-container">
-                <h2 id="deck-title">Deck Builder</h2>
-                <div class="deck-section">
-                    <h3 id="current-deck-label">Current Deck (8/8)</h3>
-                    <div id="current-deck" class="deck-cards"></div>
-                </div>
-                <div class="collection-section">
-                    <h3 id="available-cards-label">Available Cards</h3>
-                    <div id="available-cards" class="collection-cards"></div>
-                </div>
-                <button id="back-to-menu" class="menu-btn">Back to Menu</button>
-            </div>
-        </div>
-
-        <!-- Card Collection Screen -->
-        <div id="collection-screen" class="screen">
-            <div class="collection-container">
-                <h2 id="collection-title">Card Collection</h2>
-                <div id="all-cards" class="collection-cards"></div>
-                <button id="back-to-menu-2" class="menu-btn">Back to Menu</button>
-            </div>
-        </div>
-
-        <!-- Battle Screen -->
-        <div id="battle-screen" class="screen">
-            <div class="battle-container">
-                <!-- Top UI -->
-                <div class="battle-top-ui">
-                    <div class="timer-container">
-                        <span id="battle-timer">3:00</span>
+        <!-- Instructions Screen -->
+        <div id="instructionsScreen" class="screen">
+            <div class="instructions-container">
+                <h2>🎮 How to Play</h2>
+                <div class="instructions-content">
+                    <div class="instruction-group">
+                        <h3>🕹️ Controls</h3>
+                        <ul>
+                            <li><strong>WASD or Arrow Keys:</strong> Move your ship</li>
+                            <li><strong>Spacebar or Click:</strong> Shoot lasers</li>
+                            <li><strong>P:</strong> Pause game</li>
+                            <li><strong>M:</strong> Toggle sound</li>
+                        </ul>
                     </div>
-                    <div class="totems-health">
-                        <div class="enemy-totems">
-                            <div class="totem-health" id="enemy-left-totem">
-                                <div class="health-bar"><div class="health-fill"></div></div>
-                                <span class="health-text">1000</span>
-                            </div>
-                            <div class="totem-health main-totem" id="enemy-main-totem">
-                                <div class="health-bar"><div class="health-fill"></div></div>
-                                <span class="health-text">2000</span>
-                            </div>
-                            <div class="totem-health" id="enemy-right-totem">
-                                <div class="health-bar"><div class="health-fill"></div></div>
-                                <span class="health-text">1000</span>
-                            </div>
+                    
+                    <div class="instruction-group">
+                        <h3>🎯 Objective</h3>
+                        <ul>
+                            <li>Destroy alien invaders before they reach Earth</li>
+                            <li>Collect power-ups to enhance your ship</li>
+                            <li>Survive as long as possible for high scores</li>
+                            <li>Each wave gets progressively harder</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="instruction-group">
+                        <h3>⚡ Power-ups</h3>
+                        <ul>
+                            <li><span class="powerup-icon">🔥</span> <strong>Rapid Fire:</strong> Increased shooting speed</li>
+                            <li><span class="powerup-icon">💥</span> <strong>Multi-Shot:</strong> Shoot multiple lasers</li>
+                            <li><span class="powerup-icon">🛡️</span> <strong>Shield:</strong> Temporary invincibility</li>
+                            <li><span class="powerup-icon">❤️</span> <strong>Health:</strong> Restore health points</li>
+                        </ul>
+                    </div>
+                </div>
+                <button id="backFromInstructions" class="menu-btn">BACK TO MENU</button>
+            </div>
+        </div>
+
+        <!-- High Scores Screen -->
+        <div id="highScoresScreen" class="screen">
+            <div class="highscores-container">
+                <h2>🏆 High Scores</h2>
+                <div id="highScoresList" class="scores-list">
+                    <!-- High scores will be populated here -->
+                </div>
+                <button id="clearScores" class="menu-btn danger">CLEAR SCORES</button>
+                <button id="backFromHighScores" class="menu-btn">BACK TO MENU</button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="gameScreen" class="screen">
+            <!-- Game HUD -->
+            <div id="gameHUD" class="hud">
+                <div class="hud-left">
+                    <div class="hud-item">
+                        <span class="hud-label">Score:</span>
+                        <span id="currentScore" class="hud-value">0</span>
+                    </div>
+                    <div class="hud-item">
+                        <span class="hud-label">Wave:</span>
+                        <span id="currentWave" class="hud-value">1</span>
+                    </div>
+                    <div class="hud-item">
+                        <span class="hud-label">Lives:</span>
+                        <span id="currentLives" class="hud-value">3</span>
+                    </div>
+                </div>
+                
+                <div class="hud-center">
+                    <div id="waveMessage" class="wave-message"></div>
+                </div>
+                
+                <div class="hud-right">
+                    <div class="health-bar-container">
+                        <span class="hud-label">Health:</span>
+                        <div class="health-bar">
+                            <div id="healthFill" class="health-fill"></div>
                         </div>
-                        <div class="player-totems">
-                            <div class="totem-health" id="player-left-totem">
-                                <div class="health-bar"><div class="health-fill"></div></div>
-                                <span class="health-text">1000</span>
-                            </div>
-                            <div class="totem-health main-totem" id="player-main-totem">
-                                <div class="health-bar"><div class="health-fill"></div></div>
-                                <span class="health-text">2000</span>
-                            </div>
-                            <div class="totem-health" id="player-right-totem">
-                                <div class="health-bar"><div class="health-fill"></div></div>
-                                <span class="health-text">1000</span>
-                            </div>
-                        </div>
+                    </div>
+                    <div class="power-ups-display" id="activePowerUps">
+                        <!-- Active power-ups will appear here -->
                     </div>
                 </div>
+                
+                <button id="pauseButton" class="pause-btn">⏸️</button>
+            </div>
 
-                <!-- Battle Field -->
-                <div class="battle-field" id="battle-field">
-                    <canvas id="game-canvas" width="800" height="600"></canvas>
+            <!-- Game Canvas -->
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            
+            <!-- Mobile Controls -->
+            <div id="mobileControls" class="mobile-controls">
+                <div class="mobile-joystick" id="mobileJoystick">
+                    <div class="joystick-knob" id="joystickKnob"></div>
                 </div>
+                <button id="mobileShoot" class="mobile-shoot-btn">🔥</button>
+            </div>
+        </div>
 
-                <!-- Bottom UI -->
-                <div class="battle-bottom-ui">
-                    <div class="momentum-display">
-                        <div class="momentum-orb">
-                            <span id="momentum-text">3/12</span>
-                        </div>
-                    </div>
-                    <div class="hand-cards" id="hand-cards">
-                        <!-- Cards will be dynamically added here -->
-                    </div>
+        <!-- Pause Screen -->
+        <div id="pauseScreen" class="screen overlay">
+            <div class="pause-container">
+                <h2>⏸️ GAME PAUSED</h2>
+                <div class="pause-menu">
+                    <button id="resumeButton" class="menu-btn primary">RESUME</button>
+                    <button id="restartButton" class="menu-btn">RESTART</button>
+                    <button id="quitButton" class="menu-btn danger">QUIT TO MENU</button>
+                </div>
+                <div class="pause-stats">
+                    <p>Current Score: <span id="pauseScore">0</span></p>
+                    <p>Current Wave: <span id="pauseWave">1</span></p>
+                    <p>Time Played: <span id="timePlayed">00:00</span></p>
                 </div>
             </div>
         </div>
 
-        <!-- Battle Result Screen -->
-        <div id="result-screen" class="screen">
-            <div class="result-container">
-                <h2 id="result-title">Battle Result</h2>
-                <div class="result-content">
-                    <div id="result-message" class="result-message"></div>
-                    <div id="honor-change" class="honor-change"></div>
+        <!-- Game Over Screen -->
+        <div id="gameOverScreen" class="screen overlay">
+            <div class="gameover-container">
+                <h2 id="gameOverTitle">💥 GAME OVER</h2>
+                <div class="final-stats">
+                    <div class="stat-row">
+                        <span class="stat-label">Final Score:</span>
+                        <span id="finalScore" class="stat-value highlight">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Waves Survived:</span>
+                        <span id="finalWave" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Enemies Defeated:</span>
+                        <span id="enemiesDefeated" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Accuracy:</span>
+                        <span id="accuracy" class="stat-value">0%</span>
+                    </div>
                 </div>
-                <button id="continue-button" class="menu-btn">Continue</button>
+                
+                <div id="newHighScore" class="new-record" style="display: none;">
+                    🎉 NEW HIGH SCORE! 🎉
+                </div>
+                
+                <div class="gameover-menu">
+                    <button id="playAgainButton" class="menu-btn primary">PLAY AGAIN</button>
+                    <button id="backToMenuButton" class="menu-btn">MAIN MENU</button>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2>🚀 Loading Cosmic Defender...</h2>
+            <div class="loading-bar">
+                <div id="loadingProgress" class="loading-fill"></div>
+            </div>
+            <p id="loadingText">Initializing systems...</p>
+        </div>
+    </div>
+
+    <!-- Audio Elements -->
+    <audio id="shootSound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEA..." type="audio/wav">
+    </audio>
+    <audio id="explosionSound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEA..." type="audio/wav">
+    </audio>
+    <audio id="powerUpSound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEA..." type="audio/wav">
+    </audio>
+
     <!-- Scripts -->
-    <script src="localization.js"></script>
-    <script src="cards.js"></script>
     <script src="game.js"></script>
-    <script src="ai.js"></script>
-    <script src="ui.js"></script>
+    <script src="entities.js"></script>
+    <script src="powerups.js"></script>
+    <script src="audio.js"></script>
     <script src="main.js"></script>
 </body>
 </html>
